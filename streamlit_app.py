@@ -5,32 +5,8 @@ import random
 import uuid
 import asyncio
 import aiohttp
-import requests
-from sklearn.feature_extraction.text import CountVectorizer
-import wave
-import langid
-from wordcloud import WordCloud
-import io
-import datetime
-
-# Constants for transcription
-API_URL = "https://api-inference.huggingface.co/models/openai/whisper-large-v3-turbo"
-API_TOKEN = st.secrets["HUGGINGFACE_API_TOKEN"]
-HEADERS = {"Authorization": f"Bearer {API_TOKEN}"}
-MAX_DURATION_SECONDS = 120  # Max duration for the uploaded file (2 minutes)
 
 # ---- Helper Functions ----
-
-def transcribe_audio(file):
-    try:
-        data = file.read()
-        response = requests.post(API_URL, headers=HEADERS, data=data)
-        if response.status_code == 200:
-            return response.json()  # Return transcription
-        else:
-            return {"error": f"API Error: {response.status_code} - {response.text}"}
-    except Exception as e:
-        return {"error": str(e)}
 
 def get_next_model_and_key():
     """Cycle through available Gemini models and corresponding API keys."""
@@ -58,6 +34,27 @@ async def generate_content_async(prompt, session):
             return "No valid response generated."
     except Exception as e:
         return f"Error generating content: {str(e)}"
+
+# ---- Search Web Function ----
+async def search_web_async(query, session):
+    """Asynchronously searches the web using Google Custom Search API."""
+    api_key = st.secrets["GOOGLE_API_KEY"]
+    search_engine_id = st.secrets["GOOGLE_SEARCH_ENGINE_ID"]
+
+    if not api_key or not search_engine_id:
+        return None  # Return None if API keys are missing
+
+    search_url = "https://www.googleapis.com/customsearch/v1"
+    params = {"key": api_key, "cx": search_engine_id, "q": query}
+
+    try:
+        async with session.get(search_url, params=params) as response:
+            if response.status == 200:
+                return await response.json()  # Properly get the response JSON
+            else:
+                return None  # Return None on error
+    except requests.exceptions.RequestException as e:
+        return None  # Return None on exception
 
 def initialize_session():
     """Initializes session variables securely."""
@@ -205,63 +202,76 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# File uploader for audio
-uploaded_file = st.file_uploader("Upload your audio file (max duration: 2 minutes)", type=["wav", "flac", "mp3"])
+# Prompt Input Field
+prompt = st.text_area("Enter your prompt:", placeholder="Write a blog about AI trends in 2025.", height=150)
 
-# Check if audio file is uploaded and transcribe
-if uploaded_file is not None:
-    st.audio(uploaded_file, format="audio/mp3", start_time=0)
+# Session management to check for block time and session limits
+check_session_limit()
 
-    # Checking the duration of the audio file
-    try:
-        audio = uploaded_file.getvalue()
-        with wave.open(io.BytesIO(audio), 'rb') as audio_file:
-            framerate = audio_file.getframerate()
-            frames = audio_file.getnframes()
-            duration_seconds = frames / float(framerate)
+# Asyncio Event Loop for Concurrency
+async def main():
+    if st.button("Generate Response"):
+        if not prompt.strip():
+            st.warning("Please enter a valid prompt.")
+        else:
+            # Show spinner and countdown before AI request
+            with st.spinner("Please wait, generating response..."):
+                countdown_time = 5
+                countdown_text = st.empty()  # Create an empty container to update the text
+                
+                # Countdown loop with dynamic updates
+                for i in range(countdown_time, 0, -1):
+                    countdown_text.markdown(f"Generating response in **{i} seconds...**")
+                    time.sleep(1)  # Simulate countdown delay
 
-            if duration_seconds > MAX_DURATION_SECONDS:
-                st.error(f"Error: Audio duration exceeds the 2-minute limit. Your audio is {duration_seconds:.2f} seconds.")
-            else:
-                # Add a loading spinner while transcription happens
-                with st.spinner("Transcribing audio... Please wait."):
-                    result = transcribe_audio(uploaded_file)
-                    if "text" in result:
-                        transcription_text = result["text"]
-                        st.success("Transcription Complete:")
-                        st.write(transcription_text)
+                # After countdown, make the AI request
+                async with aiohttp.ClientSession() as session:
+                    generated_text = await generate_content_async(prompt, session)
 
-                        # Use the transcription text for content generation
-                        prompt = transcription_text
+                    # Increment session count
+                    st.session_state.session_count += 1
+                    st.session_state.generated_text = generated_text  # Store for potential regeneration
 
-                        # Session management to check for block time and session limits
-                        check_session_limit()
+                    # Display the generated content safely
+                    st.subheader("Generated Content:")
+                    st.markdown(generated_text)
 
-                        # Asyncio Event Loop for Concurrency
-                        async def main():
-                            if st.button("Generate Response"):
-                                if not prompt.strip():
-                                    st.warning("Please enter a valid prompt.")
-                                else:
-                                    with st.spinner("Please wait, generating response..."):
-                                        countdown_time = 5
-                                        countdown_text = st.empty()
-                                        for i in range(countdown_time, 0, -1):
-                                            countdown_text.markdown(f"Generating response in **{i} seconds...**")
-                                            time.sleep(1)
+                    # Check for similar content online asynchronously
+                    st.subheader("Searching for Similar Content Online:")
+                    search_results = await search_web_async(generated_text, session)
 
-                                        # After countdown, make the AI request
-                                        async with aiohttp.ClientSession() as session:
-                                            generated_text = await generate_content_async(prompt, session)
-                                            st.session_state.session_count += 1
-                                            st.session_state.generated_text = generated_text
-                                            st.subheader("Generated Content:")
-                                            st.markdown(generated_text)
+                    # Validate search results before accessing
+                    if search_results is None:
+                        st.warning("Error or no results from the web search.")
+                    elif isinstance(search_results, dict) and 'items' in search_results and search_results['items']:
+                        st.warning("Similar content found on the web:")
+                        for result in search_results['items'][:10]:  # Show top 5 results
+                            with st.expander(result.get('title', 'No Title')):
+                                st.write(f"**Source:** [{result.get('link', 'Unknown')}]({result.get('link', '#')})")
+                                st.write(f"**Snippet:** {result.get('snippet', 'No snippet available.')}")
+                                st.write("---")
+                    else:
+                        st.success("No similar content found online. Your content seems original!")
 
-                                            download_file(generated_text)
+                    # Trigger Streamlit balloons after generation
+                    st.balloons()
 
-                        # Run the async main function
-                        asyncio.run(main())
+                    # Allow download of the generated content
+                    download_file(generated_text)
 
-    except Exception as e:
-        st.error(f"Error processing the audio file: {e}")
+    if st.session_state.get('generated_text'):
+        if st.button("Regenerate Content"):
+            regenerated_text = regenerate_content(st.session_state.generated_text)
+            st.subheader("Regenerated Content:")
+            st.markdown(regenerated_text)
+            download_file(regenerated_text)
+
+# Run the async main function
+asyncio.run(main())
+
+# Footer with links
+st.markdown("""
+    <div class="footer">
+        <p>Powered by Streamlit and Google Generative AI | <a href="https://github.com/yourusername/yourrepo" target="_blank">GitHub</a></p>
+    </div>
+""", unsafe_allow_html=True)
