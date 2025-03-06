@@ -50,7 +50,7 @@ def download_file(content, file_format="markdown"):
     elif file_format == "html":
         # Convert content to HTML format
         content = f"<html><body><h1>Generated Blog</h1><p>{content.replace('\n', '<br>')}</p></body></html>"
-    
+
     content_bytes = content.encode('utf-8')
     st.download_button(
         label=f"Download as {file_format.upper()} File",
