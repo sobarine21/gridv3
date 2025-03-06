@@ -8,7 +8,6 @@ import aiohttp
 import requests  # For HuggingFace API requests
 
 # ---- Helper Functions ----
-# Existing code...
 
 # Set up Hugging Face API details (for transcription)
 API_URL = "https://api-inference.huggingface.co/models/openai/whisper-large-v3-turbo"
@@ -42,14 +41,42 @@ def generate_blog_from_transcription(transcription):
     prompt = f"Generate a detailed blog post based on the following text:\n\n{transcription}"
     return generate_content_async(prompt, None)  # Call the existing generate_content_async function.
 
+def get_next_model_and_key():
+    """Cycle through available Gemini models and corresponding API keys."""
+    models_and_keys = [
+        ('gemini-1.5-flash', st.secrets["API_KEY_GEMINI_1_5_FLASH"]),
+        ('gemini-2.0-flash', st.secrets["API_KEY_GEMINI_2_0_FLASH"]),
+        ('gemini-1.5-flash-8b', st.secrets["API_KEY_GEMINI_1_5_FLASH_8B"]),
+        ('gemini-2.0-flash-exp', st.secrets["API_KEY_GEMINI_2_0_FLASH_EXP"]),
+    ]
+
+    model, api_key = random.choice(models_and_keys)
+    return model, api_key
+
+async def generate_content_async(prompt, session):
+    """Asynchronously generates content using Generative AI."""
+    model, api_key = get_next_model_and_key()
+    genai.configure(api_key=api_key)
+    generative_model = genai.GenerativeModel(model)
+
+    try:
+        response = await asyncio.to_thread(generative_model.generate_content, prompt)
+        if response and response.text:
+            return response.text.strip()
+        else:
+            return "No valid response generated."
+    except Exception as e:
+        return f"Error generating content: {str(e)}"
+
 def download_file(content, file_format="markdown"):
     """Provides the option to download generated content in HTML or Markdown format."""
     if file_format == "markdown":
         # Convert content to markdown format
         content = f"# Generated Blog\n\n{content}"
     elif file_format == "html":
-        # Convert content to HTML format
-        content = f"<html><body><h1>Generated Blog</h1><p>{content.replace('\n', '<br>')}</p></body></html>"
+        # Replace newline characters with <br> before embedding in HTML
+        content = content.replace('\n', '<br>')  # Replace newlines with <br> tags
+        content = f"<html><body><h1>Generated Blog</h1><p>{content}</p></body></html>"
 
     content_bytes = content.encode('utf-8')
     st.download_button(
@@ -60,13 +87,40 @@ def download_file(content, file_format="markdown"):
         use_container_width=True,
     )
 
+def initialize_session():
+    """Initializes session variables securely."""
+    if 'session_count' not in st.session_state:
+        st.session_state.session_count = 0
+    if 'block_time' not in st.session_state:
+        st.session_state.block_time = None
+    if 'user_hash' not in st.session_state:
+        st.session_state.user_hash = str(uuid.uuid4())  # Unique session identifier
+    if 'generated_text' not in st.session_state:
+        st.session_state.generated_text = ""
+
+def check_session_limit():
+    """Checks if the user has reached the session limit and manages block time."""
+    if st.session_state.block_time:
+        time_left = st.session_state.block_time - time.time()
+        if time_left > 0:
+            st.warning(f"Session limit reached. Try again in {int(time_left)} seconds or upgrade to pro, https://evertechcms.in/gridai")
+            st.stop()
+        else:
+            st.session_state.block_time = None
+
+    if st.session_state.session_count >= 5:
+        st.session_state.block_time = time.time() + 15 * 60  # Block for 15 minutes
+        st.warning("Session limit reached. Please wait 15 minutes or upgrade to Pro.")
+        st.markdown("You can upgrade to the Pro model & Get lifetime access at just Rs 999 [here](https://forms.gle/TJWH9HJ4kqUTN7Hp9).", unsafe_allow_html=True)
+        st.stop()
+
 # ---- Main Streamlit App ----
 # Initialize session tracking
 initialize_session()
 
 # App Title and Description
 st.set_page_config(page_title="AI-Powered Ghostwriter", page_icon=":robot:", layout="centered")
-st.markdown("""<style>/* Existing styling code */</style>""", unsafe_allow_html=True)
+st.markdown("""<style>/* Custom CSS styles here */</style>""", unsafe_allow_html=True)
 
 # Instructional text with animation and clickable link
 st.markdown("""<h3>🚀 Welcome to AI-Powered Ghostwriter!</h3> <p>Generate high-quality content and check for originality using Generative AI and Google Search. Access the <a href="https://evertechcms.in/gridai" target="_blank"><strong>Grid AI Pro</strong></a> model now!</p>""", unsafe_allow_html=True)
@@ -100,7 +154,8 @@ if audio_file:
         st.warning("Transcription failed. Please try again with another file.")
 
 # ---- Content Generation (Existing functionality) ----
-# (This section will remain mostly unchanged, as it handles general content generation from text prompts)
+# Prompt Input Field for Content Generation
+prompt = st.text_area("Enter your prompt:", placeholder="Write a blog about AI trends in 2025.", height=150)
 
 # Session management to check for block time and session limits
 check_session_limit()
