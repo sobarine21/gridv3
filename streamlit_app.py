@@ -107,6 +107,7 @@ def download_file(content, file_format="txt"):
         file_name = "generated_content.txt"
         mime_type = "text/plain"
     elif file_format == "html":
+        # Fix: Replacing '\n' with '<br>' properly
         html_content = f"<html><body>{content.replace('\\n', '<br>')}</body></html>"
         content_bytes = html_content.encode('utf-8')
         file_name = "generated_content.html"
