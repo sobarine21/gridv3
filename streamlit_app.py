@@ -5,6 +5,8 @@ import random
 import uuid
 import asyncio
 import aiohttp
+import requests
+from io import StringIO
 
 # ---- Helper Functions ----
 
@@ -35,25 +37,23 @@ async def generate_content_async(prompt, session):
     except Exception as e:
         return f"Error generating content: {str(e)}"
 
-async def search_web_async(query, session):
-    """Asynchronously searches the web using Google Custom Search API."""
-    api_key = st.secrets["GOOGLE_API_KEY"]
-    search_engine_id = st.secrets["GOOGLE_SEARCH_ENGINE_ID"]
+async def transcribe_audio(audio_file):
+    """Transcribe audio using Hugging Face Whisper API."""
+    API_URL = "https://api-inference.huggingface.co/models/openai/whisper-large-v3-turbo"
+    API_TOKEN = st.secrets["HUGGINGFACE_API_TOKEN"]
+    HEADERS = {"Authorization": f"Bearer {API_TOKEN}"}
 
-    if not api_key or not search_engine_id:
-        return None  # Return None if API keys are missing
-
-    search_url = "https://www.googleapis.com/customsearch/v1"
-    params = {"key": api_key, "cx": search_engine_id, "q": query}
-
+    files = {'file': audio_file}
+    
     try:
-        async with session.get(search_url, params=params) as response:
-            if response.status == 200:
-                return await response.json()  # Properly get the response JSON
-            else:
-                return None  # Return None on error
-    except requests.exceptions.RequestException as e:
-        return None  # Return None on exception
+        response = requests.post(API_URL, headers=HEADERS, files=files)
+        if response.status_code == 200:
+            transcription = response.json()
+            return transcription.get("text", "Transcription failed.")
+        else:
+            return f"Error: {response.status_code} - {response.text}"
+    except Exception as e:
+        return f"Error transcribing audio: {str(e)}"
 
 def initialize_session():
     """Initializes session variables securely."""
@@ -101,23 +101,22 @@ def regenerate_content(original_content):
         return f"Error regenerating content: {str(e)}"
 
 def download_file(content, file_format="txt"):
-    """Provides the option to download generated content as a text or HTML file."""
-    # Convert content to bytes
+    """Provides the option to download generated content as a file (txt or html)."""
     if file_format == "txt":
         content_bytes = content.encode('utf-8')
-        mime = "text/plain"
         file_name = "generated_content.txt"
+        mime_type = "text/plain"
     elif file_format == "html":
-        content_bytes = content.encode('utf-8')
-        mime = "text/html"
+        html_content = f"<html><body>{content.replace('\n', '<br>')}</body></html>"
+        content_bytes = html_content.encode('utf-8')
         file_name = "generated_content.html"
-    
-    # Use st.download_button to provide the file download
+        mime_type = "text/html"
+
     st.download_button(
         label=f"Download as {file_format.upper()} File",
         data=content_bytes,
         file_name=file_name,
-        mime=mime,
+        mime=mime_type,
         use_container_width=True
     )
 
@@ -192,12 +191,6 @@ st.markdown("""
         color: #00d1b2;
         text-decoration: none;
     }
-    /* Hide Streamlit's default UI elements */
-    .css-1r6p8d1 {display: none;} /* Hides the Streamlit logo in the top left */
-    .css-1v3t3fg {display: none;} /* Hides the star button */
-    .css-1r6p8d1 .st-ae {display: none;} /* Hides the Streamlit logo */
-    header {visibility: hidden;} /* Hides the header */
-    .css-1tqja98 {visibility: hidden;} /* Hides the header bar */
     </style>
 """, unsafe_allow_html=True)
 
@@ -207,9 +200,8 @@ st.markdown("""
     <p>Generate high-quality content and check for originality using Generative AI and Google Search. Access the <a href="https://evertechcms.in/gridai" target="_blank"><strong>Grid AI Pro</strong></a> model now!</p>
 """, unsafe_allow_html=True)
 
-
-# Prompt Input Field
-prompt = st.text_area("Enter your prompt:", placeholder="Write a blog about AI trends in 2025.", height=150)
+# File Upload for Podcast
+audio_file = st.file_uploader("Upload a Podcast (audio file)", type=["mp3", "wav", "ogg"])
 
 # Session management to check for block time and session limits
 check_session_limit()
@@ -217,9 +209,14 @@ check_session_limit()
 # Asyncio Event Loop for Concurrency
 async def main():
     if st.button("Generate Response"):
-        if not prompt.strip():
-            st.warning("Please enter a valid prompt.")
+        if not audio_file and not prompt.strip():
+            st.warning("Please enter a valid prompt or upload an audio file.")
         else:
+            if audio_file:
+                st.spinner("Transcribing audio file...")
+                transcription = await transcribe_audio(audio_file)
+                prompt = transcription  # Use the transcription as the prompt
+
             # Show spinner and countdown before AI request
             with st.spinner("Please wait, generating response..."):
                 countdown_time = 5
@@ -242,70 +239,18 @@ async def main():
                     st.subheader("Generated Content:")
                     st.markdown(generated_text)
 
-                    # Check for similar content online asynchronously
-                    st.subheader("Searching for Similar Content Online:")
-                    search_results = await search_web_async(generated_text, session)
-
-                    # Validate search results before accessing
-                    if search_results is None:
-                        st.warning("Error or no results from the web search.")
-                    elif isinstance(search_results, dict) and 'items' in search_results and search_results['items']:
-                        st.warning("Similar content found on the web:")
-                        for result in search_results['items'][:10]:  # Show top 5 results
-                            with st.expander(result.get('title', 'No Title')):
-                                st.write(f"**Source:** [{result.get('link', 'Unknown')}]({result.get('link', '#')})")
-                                st.write(f"**Snippet:** {result.get('snippet', 'No snippet available.')}")
-                                st.write("---")
-                    else:
-                        st.success("No similar content found online. Your content seems original!")
-
                     # Trigger Streamlit balloons after generation
                     st.balloons()
 
                     # Allow download of the generated content
-                    download_file(generated_text, "txt")
-                    download_file(generated_text, "html")
+                    download_file(generated_text, file_format="html")
 
     if st.session_state.get('generated_text'):
         if st.button("Regenerate Content"):
             regenerated_text = regenerate_content(st.session_state.generated_text)
             st.subheader("Regenerated Content:")
             st.markdown(regenerated_text)
-            download_file(regenerated_text, "txt")
-            download_file(regenerated_text, "html")
-
-    # Audio transcription feature
-    st.subheader("Upload Podcast for Transcription and Blog Generation")
-    uploaded_file = st.file_uploader("Upload your podcast audio file", type=["mp3", "wav", "m4a"])
-
-    if uploaded_file is not None:
-        st.audio(uploaded_file, format='audio/mp3')
-        if st.button("Transcribe and Generate Blog"):
-            with st.spinner("Transcribing audio and generating blog..."):
-                async with aiohttp.ClientSession() as session:
-                    # Upload the audio file to Hugging Face API for transcription
-                    response = await session.post(
-                        API_URL,
-                        headers=HEADERS,
-                        data=uploaded_file.read()
-                    )
-                    transcription = await response.json()
-
-                    if "text" in transcription:
-                        transcript_text = transcription["text"]
-                        st.subheader("Transcription:")
-                        st.markdown(transcript_text)
-
-                        # Generate blog from the transcription
-                        generated_blog = await generate_content_async(f"Generate a blog post based on the following transcript:\n\n{transcript_text}", session)
-                        st.subheader("Generated Blog:")
-                        st.markdown(generated_blog)
-
-                        # Allow download of the generated blog
-                        download_file(generated_blog, "txt")
-                        download_file(generated_blog, "html")
-                    else:
-                        st.warning("Transcription failed. Please try again.")
+            download_file(regenerated_text, file_format="html")
 
 # Run the async main function
 asyncio.run(main())
