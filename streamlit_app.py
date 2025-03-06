@@ -202,7 +202,7 @@ st.markdown("""
     <p>Generate high-quality content and check for originality using Generative AI and Google Search. Access the <a href="https://evertechcms.in/gridai" target="_blank"><strong>Grid AI Pro</strong></a> model now!</p>
 """, unsafe_allow_html=True)
 
-# File Upload for Podcast
+# Option to upload podcast for transcription
 audio_file = st.file_uploader("Upload a Podcast (audio file)", type=["mp3", "wav", "ogg"])
 
 # Session management to check for block time and session limits
@@ -214,10 +214,14 @@ async def main():
         if not audio_file and not prompt.strip():
             st.warning("Please enter a valid prompt or upload an audio file.")
         else:
+            prompt = ""
+
             if audio_file:
+                # If user uploads a podcast, transcribe it
                 st.spinner("Transcribing audio file...")
                 transcription = await transcribe_audio(audio_file)
                 prompt = transcription  # Use the transcription as the prompt
+                st.success(f"Transcription: {transcription[:200]}...")  # Display the first 200 characters of transcription
 
             # Show spinner and countdown before AI request
             with st.spinner("Please wait, generating response..."):
@@ -241,18 +245,15 @@ async def main():
                     st.subheader("Generated Content:")
                     st.markdown(generated_text)
 
-                    # Trigger Streamlit balloons after generation
-                    st.balloons()
-
                     # Allow download of the generated content
-                    download_file(generated_text, file_format="html")
+                    download_file(generated_text)
 
     if st.session_state.get('generated_text'):
         if st.button("Regenerate Content"):
             regenerated_text = regenerate_content(st.session_state.generated_text)
             st.subheader("Regenerated Content:")
             st.markdown(regenerated_text)
-            download_file(regenerated_text, file_format="html")
+            download_file(regenerated_text)
 
 # Run the async main function
 asyncio.run(main())
