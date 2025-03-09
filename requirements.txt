@@ -5,5 +5,4 @@ pandas
 gtts 
 aiohttp
 fpdf
-sklearn
 wordcloud
