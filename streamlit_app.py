@@ -269,19 +269,20 @@ async def main():
                     # Allow download of the generated content
                     download_file(generated_text, "generated_content.txt", "Download as Text File", "text/plain")
 
-                    # Option to convert the content to audio
-                    if st.button("Convert to Podcast"):
-                        audio_path = text_to_audio(generated_text)
-                        with open(audio_path, "rb") as audio_file:
-                            st.download_button(
-                                label="Download as Podcast",
-                                data=audio_file,
-                                file_name="generated_content.mp3",
-                                mime="audio/mpeg"
-                            )
-                        os.remove(audio_path)  # Clean up the audio file after download
+    if 'generated_text' in st.session_state and st.session_state.generated_text:
+        if st.button("Convert to Podcast"):
+            generated_text = st.session_state.generated_text
+            audio_path = text_to_audio(generated_text)
+            with open(audio_path, "rb") as audio_file:
+                st.download_button(
+                    label="Download as Podcast",
+                    data=audio_file,
+                    file_name="generated_content.mp3",
+                    mime="audio/mpeg"
+                )
+            os.remove(audio_path)  # Clean up the audio file after download
 
-    if st.session_state.get('generated_text'):
+    if 'generated_text' in st.session_state and st.session_state.generated_text:
         if st.button("Regenerate Content"):
             regenerated_text = regenerate_content(st.session_state.generated_text)
             st.subheader("Regenerated Content:")
