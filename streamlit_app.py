@@ -207,7 +207,7 @@ st.markdown("""
 
 # Instructional text with animation and clickable link
 st.markdown("""
-    <h3>🚀 Welcome to AI-Powered Ghostwriter!</h3>
+    <h3>🚀 AI-Powered Ghostwriter & Podcast creator!</h3>
     <p>Generate high-quality content and check for originality using Generative AI and Google Search. Access the <a href="https://evertechcms.in/gridai" target="_blank"><strong>Grid AI Pro</strong></a> model now!</p>
 """, unsafe_allow_html=True)
 
