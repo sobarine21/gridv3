@@ -70,8 +70,9 @@ def initialize_session():
 
 def check_session_limit():
     """Checks if the user has reached the session limit and manages block time."""
+    current_time = time.time()
     if st.session_state.block_time:
-        time_left = st.session_state.block_time - time.time()
+        time_left = st.session_state.block_time - current_time
         if time_left > 0:
             st.warning(f"Session limit reached. Try again in {int(time_left)} seconds or upgrade to pro, https://evertechcms.in/gridai")
             st.stop()
@@ -79,10 +80,22 @@ def check_session_limit():
             st.session_state.block_time = None
 
     if st.session_state.session_count >= 2:
-        st.session_state.block_time = time.time() + 15 * 60  # Block for 15 minutes
+        st.session_state.block_time = current_time + 15 * 60  # Block for 15 minutes
         st.warning("Session limit reached. Please wait 15 minutes or upgrade to Pro.")
         st.markdown("You can upgrade to the Pro model & Get lifetime access at just Rs 999 [here](https://forms.gle/TJWH9HJ4kqUTN7Hp9).", unsafe_allow_html=True)
+        st.experimental_set_query_params(user_hash=st.session_state.user_hash, block_time=st.session_state.block_time)
         st.stop()
+
+# Refresh the page after the block time has passed
+def auto_refresh():
+    if 'block_time' in st.session_state and st.session_state.block_time:
+        time_left = st.session_state.block_time - time.time()
+        if time_left <= 0:
+            st.experimental_set_query_params(user_hash=st.session_state.user_hash)
+            st.experimental_rerun()
+
+# Call auto_refresh function to check block time and refresh if needed
+auto_refresh()
 
 def regenerate_content(original_content):
     """Generates rewritten content to ensure originality."""
@@ -207,7 +220,7 @@ st.markdown("""
 
 # Instructional text with animation and clickable link
 st.markdown("""
-    <h3>🚀 AI-Powered Ghostwriter & Podcast creator!</h3>
+    <h3>🚀 Welcome to AI-Powered Ghostwriter!</h3>
     <p>Generate high-quality content and check for originality using Generative AI and Google Search. Access the <a href="https://evertechcms.in/gridai" target="_blank"><strong>Grid AI Pro</strong></a> model now!</p>
 """, unsafe_allow_html=True)
 
@@ -255,7 +268,7 @@ async def main():
                         st.warning("Error or no results from the web search.")
                     elif isinstance(search_results, dict) and 'items' in search_results and search_results['items']:
                         st.warning("Similar content found on the web:")
-                        for result in search_results['items'][:10]:  # Show top 5 results
+                        for result in search_results['items'][:10]:  # Show top 10 results
                             with st.expander(result.get('title', 'No Title')):
                                 st.write(f"**Source:** [{result.get('link', 'Unknown')}]({result.get('link', '#')})")
                                 st.write(f"**Snippet:** {result.get('snippet', 'No snippet available.')}")
