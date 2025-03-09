@@ -80,10 +80,10 @@ def check_session_limit():
             st.session_state.block_time = None
 
     if st.session_state.session_count >= 2:
-        st.session_state.block_time = current_time + 15 * 60  # Block for 15 minutes
-        st.warning("Session limit reached. Please wait 15 minutes or upgrade to Pro.")
+        st.session_state.block_time = current_time + 1 * 60  # Block for 1 minute
+        st.warning("Session limit reached. Please wait 1 minute or upgrade to Pro.")
         st.markdown("You can upgrade to the Pro model & Get lifetime access at just Rs 999 [here](https://forms.gle/TJWH9HJ4kqUTN7Hp9).", unsafe_allow_html=True)
-        st.experimental_set_query_params(user_hash=st.session_state.user_hash, block_time=st.session_state.block_time)
+        st.query_params(user_hash=st.session_state.user_hash, block_time=st.session_state.block_time)
         st.stop()
 
 # Refresh the page after the block time has passed
@@ -91,7 +91,7 @@ def auto_refresh():
     if 'block_time' in st.session_state and st.session_state.block_time:
         time_left = st.session_state.block_time - time.time()
         if time_left <= 0:
-            st.experimental_set_query_params(user_hash=st.session_state.user_hash)
+            st.query_params(user_hash=st.session_state.user_hash)
             st.experimental_rerun()
 
 # Call auto_refresh function to check block time and refresh if needed
