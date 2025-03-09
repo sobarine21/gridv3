@@ -118,6 +118,8 @@ def download_file(content, filename, label, mime_type):
 
 def text_to_audio(text):
     """Convert text to audio using gTTS."""
+    # Remove asterisks from text
+    text = text.replace("*", "")
     tts = gTTS(text=text, lang='en')
     audio_path = f"generated_content_{uuid.uuid4()}.mp3"
     tts.save(audio_path)
@@ -267,16 +269,17 @@ async def main():
                     # Allow download of the generated content
                     download_file(generated_text, "generated_content.txt", "Download as Text File", "text/plain")
 
-                    # Convert the content to audio and provide download option
-                    audio_path = text_to_audio(generated_text)
-                    with open(audio_path, "rb") as audio_file:
-                        st.download_button(
-                            label="Download as Podcast",
-                            data=audio_file,
-                            file_name="generated_content.mp3",
-                            mime="audio/mpeg"
-                        )
-                    os.remove(audio_path)  # Clean up the audio file after download
+                    # Option to convert the content to audio
+                    if st.button("Convert to Podcast"):
+                        audio_path = text_to_audio(generated_text)
+                        with open(audio_path, "rb") as audio_file:
+                            st.download_button(
+                                label="Download as Podcast",
+                                data=audio_file,
+                                file_name="generated_content.mp3",
+                                mime="audio/mpeg"
+                            )
+                        os.remove(audio_path)  # Clean up the audio file after download
 
     if st.session_state.get('generated_text'):
         if st.button("Regenerate Content"):
@@ -285,16 +288,17 @@ async def main():
             st.markdown(regenerated_text)
             download_file(regenerated_text, "regenerated_content.txt", "Download as Text File", "text/plain")
 
-            # Convert the regenerated content to audio and provide download option
-            audio_path = text_to_audio(regenerated_text)
-            with open(audio_path, "rb") as audio_file:
-                st.download_button(
-                    label="Download Regenerated Content as Podcast",
-                    data=audio_file,
-                    file_name="regenerated_content.mp3",
-                    mime="audio/mpeg"
-                )
-            os.remove(audio_path)  # Clean up the audio file after download
+            # Option to convert the regenerated content to audio
+            if st.button("Convert Regenerated Content to Podcast"):
+                audio_path = text_to_audio(regenerated_text)
+                with open(audio_path, "rb") as audio_file:
+                    st.download_button(
+                        label="Download Regenerated Content as Podcast",
+                        data=audio_file,
+                        file_name="regenerated_content.mp3",
+                        mime="audio/mpeg"
+                    )
+                os.remove(audio_path)  # Clean up the audio file after download
 
 # Run the async main function
 asyncio.run(main())
