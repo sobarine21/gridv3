@@ -271,16 +271,17 @@ async def main():
 
     if 'generated_text' in st.session_state and st.session_state.generated_text:
         if st.button("Convert to Podcast"):
-            generated_text = st.session_state.generated_text
-            audio_path = text_to_audio(generated_text)
-            with open(audio_path, "rb") as audio_file:
-                st.download_button(
-                    label="Download as Podcast",
-                    data=audio_file,
-                    file_name="generated_content.mp3",
-                    mime="audio/mpeg"
-                )
-            os.remove(audio_path)  # Clean up the audio file after download
+            with st.spinner("Generating podcast..."):
+                generated_text = st.session_state.generated_text
+                audio_path = text_to_audio(generated_text)
+                with open(audio_path, "rb") as audio_file:
+                    st.download_button(
+                        label="Download as Podcast",
+                        data=audio_file,
+                        file_name="generated_content.mp3",
+                        mime="audio/mpeg"
+                    )
+                os.remove(audio_path)  # Clean up the audio file after download
 
     if 'generated_text' in st.session_state and st.session_state.generated_text:
         if st.button("Regenerate Content"):
@@ -291,15 +292,16 @@ async def main():
 
             # Option to convert the regenerated content to audio
             if st.button("Convert Regenerated Content to Podcast"):
-                audio_path = text_to_audio(regenerated_text)
-                with open(audio_path, "rb") as audio_file:
-                    st.download_button(
-                        label="Download Regenerated Content as Podcast",
-                        data=audio_file,
-                        file_name="regenerated_content.mp3",
-                        mime="audio/mpeg"
-                    )
-                os.remove(audio_path)  # Clean up the audio file after download
+                with st.spinner("Generating podcast..."):
+                    audio_path = text_to_audio(regenerated_text)
+                    with open(audio_path, "rb") as audio_file:
+                        st.download_button(
+                            label="Download Regenerated Content as Podcast",
+                            data=audio_file,
+                            file_name="regenerated_content.mp3",
+                            mime="audio/mpeg"
+                        )
+                    os.remove(audio_path)  # Clean up the audio file after download
 
 # Run the async main function
 asyncio.run(main())
